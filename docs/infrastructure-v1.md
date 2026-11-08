@@ -4,11 +4,13 @@
 
 ## Запуск
 
+Для проверочных скриптов требуется Python 3.9+ без сторонних пакетов.
+
 ~~~powershell
 Copy-Item deploy/compose/.env.example deploy/compose/.env
 # Set three independent local passwords in .env before the first start.
 docker compose --env-file deploy/compose/.env -f deploy/compose/compose.yaml up --build -d --wait --wait-timeout 180
-./tests/infrastructure/smoke.ps1 -EnvFile deploy/compose/.env
+python tests/infrastructure/smoke.py --env-file deploy/compose/.env
 ~~~
 
 Приложения публикуют JSON-логи, /health, /ready и /metrics. C# readiness означает успешные миграции и probes PostgreSQL/Kafka; Load Agent дополнительно проверяет Control API. Проверки повторяются каждые 3 секунды и не завершают процесс при временном отказе. SIGTERM запускает graceful shutdown до 10 секунд.

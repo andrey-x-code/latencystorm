@@ -72,7 +72,7 @@ Control API и Results Service обращаются только к своим �
 
 Результат: контракты и короткое описание протокола в `contracts/` и `docs/`.
 
-Реализация: [контракты и инструкция проверки](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md), [версии](docs/toolchain.md). Команда проверки: `./scripts/verify-contracts.ps1` (PowerShell, Docker с Linux containers).
+Реализация: [контракты и инструкция проверки](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md), [версии](docs/toolchain.md). Команда проверки: `python scripts/verify-contracts.py` (Python 3.9+, Docker с Linux containers).
 
 Критерий готовности: из `.proto` генерируются C#- и Go-типы; пример Kafka-пакета читается обеими сторонами. Описан успешный запуск и поведение при остановке, повторной команде и потере связи.
 
@@ -89,7 +89,7 @@ Control API и Results Service обращаются только к своим �
 
 Результат: каркас всех сервисов и воспроизводимое локальное окружение.
 
-Реализация: [инструкция инфраструктуры](docs/infrastructure-v1.md), [Compose](deploy/compose/compose.yaml), [smoke-test](tests/infrastructure/smoke.ps1). Этап реализован в ветке `mvp/stage-02-infrastructure`.
+Реализация: [инструкция инфраструктуры](docs/infrastructure-v1.md), [Compose](deploy/compose/compose.yaml), [smoke-test](tests/infrastructure/smoke.py). Этап реализован в ветке `mvp/stage-02-infrastructure`.
 
 Критерий готовности: `docker compose up --build` из каталога конфигурации запускает окружение; приложения подключаются к своим зависимостям, а Demo Target воспроизводит задержки и ошибки. Выполнено; smoke-проверка подтверждает запуск и восстановление readiness после остановки Kafka.
 

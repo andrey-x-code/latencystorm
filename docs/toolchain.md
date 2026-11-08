@@ -19,6 +19,6 @@
 
 .NET запрещает автоматический переход на другой SDK через rollForward=disable. Go module задаёт минимальную языковую версию 1.26.0 и рекомендуемый toolchain 1.26.10; проверка в Docker выполняется ровно на 1.26.10 с GOTOOLCHAIN=local. При локальной разработке проверяйте go version: директива toolchain сама по себе не запрещает более новый установленный Go.
 
-Прямые зависимости имеют точные версии. Транзитивные зависимости .NET закреплены packages.lock.json, Go — go.mod/go.sum. Не редактируйте lockfiles вручную. При обновлении восстановите зависимости, проверьте diff и запустите scripts/verify-contracts.ps1. Grpc.Tools поставляет protoc и standard includes, поэтому отдельная установка компилятора protobuf не нужна.
+Прямые зависимости имеют точные версии. Транзитивные зависимости .NET закреплены packages.lock.json, Go — go.mod/go.sum. Не редактируйте lockfiles вручную. При обновлении восстановите зависимости, проверьте diff и запустите scripts/verify-contracts.py. Grpc.Tools поставляет protoc и standard includes, поэтому отдельная установка компилятора protobuf не нужна.
 
 Проверка контрактов требует Docker с Linux containers и доступа к NuGet, Go modules и registry при первом запуске. SDK на Windows-хосте не требуются. PostgreSQL, Kafka и Prometheus проверяются как часть окружения на этапе 2; проверка контрактов их не запускает.

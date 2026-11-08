@@ -8,10 +8,10 @@
 
 ## Проверка и генерация
 
-Из корня репозитория, PowerShell и Docker Desktop с Linux containers:
+Из корня репозитория, Python 3.9+ и Docker Desktop с Linux containers:
 
-~~~powershell
-./scripts/verify-contracts.ps1
+~~~sh
+python scripts/verify-contracts.py
 ~~~
 
 Скрипт использует точные версии из toolchain.env, собирает C#-контракты и gRPC stubs, генерирует Go-типы и stubs, проверяет форматирование, go vet и go test. C# читает пример пакета, Go проверяет семантическое равенство C#-вывода исходному примеру и пишет свой JSON, затем C# читает его обратно. Дополнительно проверяются бинарная команда Start, snapshot/манифест, большие uint64, enum и строгий JSON-парсинг. Это проверки контрактов, не работающих сервисов или Kafka.
@@ -21,12 +21,12 @@
 При изменении .proto или зависимостей:
 
 1. Обновите схему и связанные документы/примеры. Для SDK синхронно измените global.json, go.mod и toolchain.env; в Dockerfile значения ARG служат теми же значениями по умолчанию для прямого запуска.
-2. Запустите ./scripts/verify-contracts.ps1 -UpdateGenerated. Скрипт разрешает обновить lockfiles, пересоздаёт Go-типы и копирует результаты в исходные каталоги.
-3. Проверьте diff, затем выполните ./scripts/verify-contracts.ps1 без флага. В этом режиме .NET restore работает с --locked-mode, Go — с -mod=readonly, и проверяется отсутствие расхождений в генерации.
+2. Запустите python scripts/verify-contracts.py --update-generated. Скрипт разрешает обновить lockfiles, пересоздаёт Go-типы и копирует результаты в исходные каталоги.
+3. Проверьте diff, затем выполните python scripts/verify-contracts.py без флага. В этом режиме .NET restore работает с --locked-mode, Go — с -mod=readonly, и проверяется отсутствие расхождений в генерации.
 
 Локальная сборка C# при наличии SDK 10.0.403:
 
-~~~powershell
+~~~sh
 dotnet restore tests/contracts/csharp/ContractCheck.csproj --locked-mode
 dotnet build tests/contracts/csharp/ContractCheck.csproj --no-restore
 dotnet run --no-build --project tests/contracts/csharp/ContractCheck.csproj -- contracts/events/examples/result-batch.v1.json .artifacts/csharp.json
