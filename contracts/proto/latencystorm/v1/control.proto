@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package latencystorm.v1;
+option csharp_namespace = "LatencyStorm.Contracts.V1";
+option go_package = "github.com/andrey-x-code/latencystorm/contracts/go/gen/latencystorm/v1;contractsv1";
+
+import "google/protobuf/timestamp.proto";
+import "latencystorm/v1/model.proto";
+
+service AgentControl {
+  // Agent initiates one ordered, bidirectional stream per process session.
+  rpc Connect(stream AgentMessage) returns (stream CoordinatorMessage);
+}
+message AgentMessage {
+  string agent_id = 1;
+  string session_id = 2;
+  oneof payload {
+    RegisterAgent register = 10;
+    Heartbeat heartbeat = 11;
+    AssignmentReady ready = 12;
+    AssignmentStarted started = 13;
+    AssignmentFinished finished = 14;
+    CommandRejected rejected = 15;
+  }
+}
+message CoordinatorMessage {
+  string session_id = 1;
+  string command_id = 2;
+  oneof payload {
+    RegistrationAccepted registered = 10;
+    PrepareAssignment prepare = 11;
+    StartAssignment start = 12;
+    StopAssignment stop = 13;
+    RenewLease renew_lease = 14;
+  }
+}
+message RegisterAgent {
+  uint32 protocol_version = 1; // Exactly 1 for this contract.
+  string agent_version = 2;
+}
+message RegistrationAccepted {
+  uint32 protocol_version = 1;
+  uint32 heartbeat_interval_ms = 2;
+  uint32 lease_duration_ms = 3;
+  google.protobuf.Timestamp coordinator_time = 4;
+}
+message Heartbeat {
+  string assignment_id = 1; // Empty only while idle.
+  AssignmentState state = 2; // Unspecified only while idle.
+  google.protobuf.Timestamp sent_at = 3;
+}
+message PrepareAssignment {
+  string run_id = 1;
+  string assignment_id = 2;
+  ScenarioSnapshot snapshot = 3;
+  uint32 assigned_rps = 4;
+  google.protobuf.Timestamp prepare_deadline = 5;
+}
+message AssignmentReady {
+  string run_id = 1;
+  string assignment_id = 2;
+  string prepare_command_id = 3;
+}
+message StartAssignment {
+  string run_id = 1;
+  string assignment_id = 2;
+  google.protobuf.Timestamp start_at = 3;
+  google.protobuf.Timestamp lease_expires_at = 4;
+  uint64 lease_sequence = 5;
+}
+message RenewLease {
+  string run_id = 1;
+  string assignment_id = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  uint64 lease_sequence = 4;
+}
+message StopAssignment {
+  string run_id = 1;
+  string assignment_id = 2;
+  StopReason reason = 3;
+}
+message AssignmentStarted {
+  string run_id = 1;
+  string assignment_id = 2;
+  google.protobuf.Timestamp actual_start_at = 3;
+}
+message AssignmentFinished {
+  string run_id = 1;
+  string assignment_id = 2;
+  AssignmentState state = 3;
+  FailureReason failure_reason = 4;
+  google.protobuf.Timestamp generation_stopped_at = 5;
+  google.protobuf.Timestamp finished_at = 6;
+  uint64 final_sequence = 7;
+  bool measurements_lost = 8;
+  bool final_batch_published = 9;
+}
+enum CommandRejectionReason {
+  COMMAND_REJECTION_REASON_UNSPECIFIED = 0;
+  COMMAND_REJECTION_REASON_INVALID_ARGUMENT = 1;
+  COMMAND_REJECTION_REASON_BUSY = 2;
+  COMMAND_REJECTION_REASON_STALE_ASSIGNMENT = 3;
+  COMMAND_REJECTION_REASON_CONFLICTING_COMMAND = 4;
+  COMMAND_REJECTION_REASON_DEADLINE_EXCEEDED = 5;
+}
+message CommandRejected {
+  string command_id = 1;
+  string run_id = 2;
+  string assignment_id = 3;
+  CommandRejectionReason reason = 4;
+  string detail = 5; // Bounded diagnostic, no request bodies or secrets.
+}
+
+service ResultsIngestion {
+  // Idempotent manifest persistence must be acknowledged before issuing Start.
+  rpc PutRunManifest(RunManifest) returns (ManifestAccepted);
+  // Durable terminal metadata and delivery deadline; retry the same content.
+  rpc FinalizeRun(RunFinalization) returns (ManifestAccepted);
+}
+message ExpectedAssignment {
+  string assignment_id = 1;
+  string agent_id = 2;
+  uint32 assigned_rps = 3;
+  uint64 planned_requests = 4;
+}
+message RunManifest {
+  uint32 schema_version = 1;
+  string run_id = 2;
+  ScenarioSnapshot snapshot = 3;
+  repeated ExpectedAssignment assignments = 4;
+  google.protobuf.Timestamp start_at = 5;
+  google.protobuf.Timestamp result_deadline = 6; // Hard deadline even if coordinator dies.
+}
+message RunFinalization {
+  string run_id = 1;
+  RunState state = 2;
+  FailureReason failure_reason = 3;
+  google.protobuf.Timestamp generation_stopped_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+}
+message ManifestAccepted {
+  string run_id = 1;
+}

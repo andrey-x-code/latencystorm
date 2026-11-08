@@ -12,7 +12,9 @@ The project explores microservice architecture, communication between C# and Go 
 
 ### Project status
 
-LatencyStorm is at the initial design stage. This repository currently contains project documentation; the components and capabilities below are planned. Setup instructions will be added as implementation progresses.
+MVP stage 1 provides versioned protobuf contracts, protocol and measurement specifications, and verified C# / Go compatibility. Application services and the local infrastructure are planned for later stages. See [contracts](contracts/README.md), [protocol](docs/protocol-v1.md), [measurements](docs/measurements-v1.md), and [pinned versions](docs/toolchain.md).
+
+To generate and verify contracts, run `./scripts/verify-contracts.ps1` from the repository root in PowerShell with Docker Desktop using Linux containers. Host .NET, Go, and protoc installations are not required. The first run downloads SDK images and dependencies.
 
 ### Planned architecture
 
@@ -79,7 +81,9 @@ LatencyStorm — платформа для распределённого наг
 
 ### Статус проекта
 
-LatencyStorm находится на начальном этапе проектирования. Сейчас репозиторий содержит документацию проекта; описанные ниже компоненты и возможности запланированы к реализации. Инструкции по запуску появятся по мере разработки.
+В рамках этапа 1 MVP подготовлены версионируемые protobuf-контракты, спецификации протокола и измерений; совместимость C# / Go проверяется автоматически. Сервисы и локальная инфраструктура появятся на следующих этапах. См. [контракты](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md) и [закреплённые версии](docs/toolchain.md).
+
+Для генерации и проверки контрактов выполните `./scripts/verify-contracts.ps1` из корня репозитория в PowerShell с Docker Desktop в режиме Linux containers. Устанавливать .NET, Go и protoc на хост не требуется. При первом запуске загружаются образы SDK и зависимости.
 
 ### Планируемая архитектура
 

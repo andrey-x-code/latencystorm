@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package latencystorm.v1;
+option csharp_namespace = "LatencyStorm.Contracts.V1";
+option go_package = "github.com/andrey-x-code/latencystorm/contracts/go/gen/latencystorm/v1;contractsv1";
+
+import "google/protobuf/timestamp.proto";
+
+// Zero enum values are invalid at service boundaries unless explicitly documented.
+enum RunState {
+  RUN_STATE_UNSPECIFIED = 0;
+  RUN_STATE_PREPARING = 1;
+  RUN_STATE_RUNNING = 2;
+  RUN_STATE_STOPPING = 3;
+  RUN_STATE_COMPLETED = 4;
+  RUN_STATE_STOPPED = 5;
+  RUN_STATE_FAILED = 6;
+}
+enum ReportState {
+  REPORT_STATE_UNSPECIFIED = 0;
+  REPORT_STATE_COLLECTING = 1;
+  REPORT_STATE_COMPLETE = 2;
+  REPORT_STATE_INCOMPLETE = 3;
+}
+enum AgentState {
+  AGENT_STATE_UNSPECIFIED = 0;
+  AGENT_STATE_OFFLINE = 1;
+  AGENT_STATE_IDLE = 2;
+  AGENT_STATE_RESERVED = 3;
+  AGENT_STATE_BUSY = 4;
+}
+enum AssignmentState {
+  ASSIGNMENT_STATE_UNSPECIFIED = 0;
+  ASSIGNMENT_STATE_PREPARING = 1;
+  ASSIGNMENT_STATE_READY = 2;
+  ASSIGNMENT_STATE_SCHEDULED = 3;
+  ASSIGNMENT_STATE_RUNNING = 4;
+  ASSIGNMENT_STATE_STOPPING = 5;
+  ASSIGNMENT_STATE_COMPLETED = 6;
+  ASSIGNMENT_STATE_STOPPED = 7;
+  ASSIGNMENT_STATE_FAILED = 8;
+}
+enum FailureReason {
+  FAILURE_REASON_UNSPECIFIED = 0; // No failure only when state is not Failed.
+  FAILURE_REASON_PREPARATION_REJECTED = 1;
+  FAILURE_REASON_PREPARATION_TIMEOUT = 2;
+  FAILURE_REASON_AGENT_LOST = 3;
+  FAILURE_REASON_LEASE_EXPIRED = 4;
+  FAILURE_REASON_COORDINATOR_RESTARTED = 5;
+  FAILURE_REASON_INTERNAL_ERROR = 6;
+  FAILURE_REASON_PROTOCOL_VIOLATION = 7;
+}
+enum StopReason {
+  STOP_REASON_UNSPECIFIED = 0;
+  STOP_REASON_USER_REQUEST = 1;
+  STOP_REASON_RUN_FAILED = 2;
+  STOP_REASON_COORDINATOR_SHUTDOWN = 3;
+}
+enum ReportIncompleteReason {
+  REPORT_INCOMPLETE_REASON_UNSPECIFIED = 0;
+  REPORT_INCOMPLETE_REASON_MISSING_MANIFEST = 1;
+  REPORT_INCOMPLETE_REASON_MISSING_BATCH = 2;
+  REPORT_INCOMPLETE_REASON_MISSING_FINAL_BATCH = 3;
+  REPORT_INCOMPLETE_REASON_MEASUREMENTS_LOST = 4;
+  REPORT_INCOMPLETE_REASON_INVALID_BATCH = 5;
+  REPORT_INCOMPLETE_REASON_DELIVERY_DEADLINE_EXCEEDED = 6;
+}
+message HttpHeader {
+  string name = 1;
+  repeated string values = 2;
+}
+message HttpRequestSpec {
+  string method = 1;
+  string url = 2;
+  repeated HttpHeader headers = 3;
+  optional bytes body = 4;
+}
+// All durations are positive integer milliseconds; rate and concurrency are integers.
+message ScenarioSnapshot {
+  string scenario_id = 1;
+  uint64 revision = 2;
+  HttpRequestSpec request = 3;
+  uint32 total_rps = 4;
+  uint32 duration_ms = 5;
+  uint32 request_timeout_ms = 6;
+  uint32 max_concurrency_per_agent = 7;
+  uint32 max_response_body_bytes = 8;
+  uint32 drain_timeout_ms = 9;
+}
+message Scenario {
+  string scenario_id = 1;
+  string name = 2;
+  ScenarioSnapshot definition = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+message Run {
+  string run_id = 1;
+  ScenarioSnapshot snapshot = 2;
+  RunState state = 3;
+  FailureReason failure_reason = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp scheduled_start_at = 6;
+  google.protobuf.Timestamp generation_stopped_at = 7;
+  google.protobuf.Timestamp finished_at = 8;
+  repeated string assignment_ids = 9;
+}
+message Agent {
+  string agent_id = 1;
+  string session_id = 2;
+  AgentState state = 3;
+  google.protobuf.Timestamp last_heartbeat_at = 4;
+  string active_assignment_id = 5;
+  string version = 6;
+}
+message Assignment {
+  string run_id = 1;
+  string assignment_id = 2;
+  string agent_id = 3;
+  uint32 assigned_rps = 4;
+  AssignmentState state = 5;
+  FailureReason failure_reason = 6;
+  google.protobuf.Timestamp actual_start_at = 7;
+  google.protobuf.Timestamp generation_stopped_at = 8;
+  google.protobuf.Timestamp finished_at = 9;
+}
