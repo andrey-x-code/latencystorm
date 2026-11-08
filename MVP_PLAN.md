@@ -72,7 +72,7 @@ Control API и Results Service обращаются только к своим �
 
 Результат: контракты и короткое описание протокола в `contracts/` и `docs/`.
 
-Реализация: [контракты и инструкция проверки](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md), [версии](docs/toolchain.md). Команда проверки: `./scripts/verify-contracts.ps1` (PowerShell, Docker с Linux containers).
+Реализация: [контракты и инструкция проверки](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md), [версии](docs/toolchain.md). Команда проверки: `python scripts/verify-contracts.py` (Python 3.9+, Docker с Linux containers).
 
 Критерий готовности: из `.proto` генерируются C#- и Go-типы; пример Kafka-пакета читается обеими сторонами. Описан успешный запуск и поведение при остановке, повторной команде и потере связи.
 
