@@ -426,3 +426,30 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Additional .NET / C# local files
+TestResults/
+**/TestResults/
+.dotnet/
+*.csproj.user
+*.sln.iml
+
+# JetBrains Rider / ReSharper
+.idea/
+
+# Go build output and local tooling
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+*.coverprofile
+*.prof
+.gocache/
+.golangci-lint-cache/
+
+# Go workspace and editor metadata
+.vscode/go.code-workspace
