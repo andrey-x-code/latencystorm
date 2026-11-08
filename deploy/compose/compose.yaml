@@ -1,0 +1,102 @@
+name: latencystorm
+services:
+  postgres:
+    image: postgres:18.1-bookworm
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      CONTROL_DB_PASSWORD: ${CONTROL_DB_PASSWORD:?Set CONTROL_DB_PASSWORD in .env}
+      RESULTS_DB_PASSWORD: ${RESULTS_DB_PASSWORD:?Set RESULTS_DB_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/01-databases.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  kafka:
+    image: apache/kafka:4.1.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: [CMD-SHELL, '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1']
+      interval: 10s
+      timeout: 10s
+      retries: 20
+  control-api:
+    build:
+      context: ../..
+      dockerfile: src/control-api/Dockerfile
+    environment:
+      DATABASE_URL: 'Host=postgres;Database=control;Username=control;Password=${CONTROL_DB_PASSWORD};Timeout=3;Command Timeout=5'
+      KAFKA_BROKERS: kafka:9092
+    ports: ['127.0.0.1:8080:8080']
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    stop_grace_period: 15s
+  results-service:
+    build:
+      context: ../..
+      dockerfile: src/results-service/Dockerfile
+    environment:
+      DATABASE_URL: 'Host=postgres;Database=results;Username=results;Password=${RESULTS_DB_PASSWORD};Timeout=3;Command Timeout=5'
+      KAFKA_BROKERS: kafka:9092
+    ports: ['127.0.0.1:8081:8080']
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    stop_grace_period: 15s
+  load-agent:
+    build:
+      context: ../../src
+      dockerfile: load-agent/Dockerfile
+    environment:
+      AGENT_ID: agent-01
+      CONTROL_API_URL: http://control-api:8080
+      KAFKA_BROKERS: kafka:9092
+    ports: ['127.0.0.1:8082:8080']
+    depends_on:
+      control-api: {condition: service_healthy}
+    stop_grace_period: 15s
+    healthcheck:
+      test: [CMD, /app, --healthcheck]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+  demo-target:
+    build:
+      context: ../../src
+      dockerfile: demo-target/Dockerfile
+    environment:
+      DEMO_DELAY_MS: ${DEMO_DELAY_MS:-0}
+      DEMO_STATUS_CODE: ${DEMO_STATUS_CODE:-200}
+      DEMO_ERROR_RATE: ${DEMO_ERROR_RATE:-0}
+    ports: ['127.0.0.1:8083:8080']
+    stop_grace_period: 15s
+    healthcheck:
+      test: [CMD, /app, --healthcheck]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ['127.0.0.1:9090:9090']
+volumes:
+  postgres-data:
+  prometheus-data:

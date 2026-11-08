@@ -1,0 +1,19 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS dotnet-check
+WORKDIR /repo
+COPY global.json ./
+COPY src/service-defaults/ src/service-defaults/
+COPY src/control-api/ src/control-api/
+COPY src/results-service/ src/results-service/
+RUN dotnet restore src/control-api/LatencyStorm.ControlApi.csproj --locked-mode && dotnet restore src/results-service/LatencyStorm.ResultsService.csproj --locked-mode
+RUN dotnet build src/control-api/LatencyStorm.ControlApi.csproj --no-restore && dotnet build src/results-service/LatencyStorm.ResultsService.csproj --no-restore
+RUN dotnet format src/service-defaults/LatencyStorm.ServiceDefaults.csproj --no-restore --verify-no-changes && dotnet format src/control-api/LatencyStorm.ControlApi.csproj --no-restore --verify-no-changes && dotnet format src/results-service/LatencyStorm.ResultsService.csproj --no-restore --verify-no-changes
+FROM golang:1.26.10-bookworm AS go-check
+WORKDIR /src
+COPY src/go.mod src/go.sum ./
+COPY src/go-common/ go-common/
+COPY src/load-agent/ load-agent/
+COPY src/demo-target/ demo-target/
+RUN test -z "$(gofmt -l go-common load-agent demo-target)" && go mod tidy -diff && go vet ./... && go test -race ./...
+FROM scratch AS export
+COPY --from=dotnet-check /repo/src /dotnet
+COPY --from=go-check /src /go

@@ -12,9 +12,9 @@ The project explores microservice architecture, communication between C# and Go 
 
 ### Project status
 
-MVP stage 1 provides versioned protobuf contracts, protocol and measurement specifications, and verified C# / Go compatibility. Application services and the local infrastructure are planned for later stages. See [contracts](contracts/README.md), [protocol](docs/protocol-v1.md), [measurements](docs/measurements-v1.md), and [pinned versions](docs/toolchain.md).
+MVP stage 1 provides versioned protobuf contracts, protocol and measurement specifications, and verified C# / Go compatibility. MVP stage 2 adds service skeletons and a working local infrastructure. See [contracts](contracts/README.md), [protocol](docs/protocol-v1.md), [measurements](docs/measurements-v1.md), and [pinned versions](docs/toolchain.md).
 
-To generate and verify contracts, run `./scripts/verify-contracts.ps1` from the repository root in PowerShell with Docker Desktop using Linux containers. Host .NET, Go, and protoc installations are not required. The first run downloads SDK images and dependencies.
+To generate and verify contracts, run `./scripts/verify-contracts.ps1` from the repository root in PowerShell with Docker Desktop using Linux containers. Host .NET, Go, and protoc installations are not required. The first run downloads SDK images and dependencies. Stage 2 adds the local environment described in [`docs/infrastructure-v1.md`](docs/infrastructure-v1.md).
 
 ### Planned architecture
 
@@ -81,9 +81,9 @@ LatencyStorm — платформа для распределённого наг
 
 ### Статус проекта
 
-В рамках этапа 1 MVP подготовлены версионируемые protobuf-контракты, спецификации протокола и измерений; совместимость C# / Go проверяется автоматически. Сервисы и локальная инфраструктура появятся на следующих этапах. См. [контракты](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md) и [закреплённые версии](docs/toolchain.md).
+В рамках этапа 1 MVP подготовлены версионируемые protobuf-контракты, спецификации протокола и измерений; совместимость C# / Go проверяется автоматически. Этап 2 добавляет каркасы сервисов и работающее локальное окружение. См. [контракты](contracts/README.md), [протокол](docs/protocol-v1.md), [измерения](docs/measurements-v1.md) и [закреплённые версии](docs/toolchain.md).
 
-Для генерации и проверки контрактов выполните `./scripts/verify-contracts.ps1` из корня репозитория в PowerShell с Docker Desktop в режиме Linux containers. Устанавливать .NET, Go и protoc на хост не требуется. При первом запуске загружаются образы SDK и зависимости.
+Для генерации и проверки контрактов выполните `./scripts/verify-contracts.ps1` из корня репозитория в PowerShell с Docker Desktop в режиме Linux containers. Устанавливать .NET, Go и protoc на хост не требуется. При первом запуске загружаются образы SDK и зависимости. Локальное окружение этапа 2 описано в [`docs/infrastructure-v1.md`](docs/infrastructure-v1.md).
 
 ### Планируемая архитектура
 
