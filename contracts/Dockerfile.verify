@@ -1,0 +1,46 @@
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0.403
+ARG GO_IMAGE=golang:1.26.10-bookworm
+FROM ${DOTNET_SDK_IMAGE} AS dotnet-tools
+ARG UPDATE_LOCKS=false
+WORKDIR /repo
+COPY global.json ./
+COPY contracts/csharp/ contracts/csharp/
+COPY contracts/proto/ contracts/proto/
+COPY tests/contracts/csharp/ tests/contracts/csharp/
+RUN if [ "$UPDATE_LOCKS" = true ]; then dotnet restore tests/contracts/csharp/ContractCheck.csproj --use-lock-file --force-evaluate; else dotnet restore tests/contracts/csharp/ContractCheck.csproj --locked-mode; fi
+RUN dotnet build tests/contracts/csharp/ContractCheck.csproj --no-restore
+RUN dotnet format contracts/csharp/LatencyStorm.Contracts.csproj --verify-no-changes --no-restore     && dotnet format tests/contracts/csharp/ContractCheck.csproj --verify-no-changes --no-restore
+RUN mkdir /protobuf-tools     && cp /root/.nuget/packages/grpc.tools/2.71.0/tools/linux_x64/protoc /protobuf-tools/protoc     && cp -R /root/.nuget/packages/grpc.tools/2.71.0/build/native/include /protobuf-tools/include
+
+FROM ${GO_IMAGE} AS go-tools
+ARG PROTOC_GEN_GO_VERSION=v1.36.6
+ARG PROTOC_GEN_GO_GRPC_VERSION=v1.5.1
+ARG UPDATE_LOCKS=false
+ENV GOTOOLCHAIN=local
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}     && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
+COPY --from=dotnet-tools /protobuf-tools /protobuf-tools
+WORKDIR /repo
+COPY contracts/proto/ contracts/proto/
+COPY contracts/go/ contracts/go/
+COPY tests/contracts/go/ contracts/go/compat/
+RUN mkdir -p contracts/go/gen     && /protobuf-tools/protoc -Icontracts/proto -I/protobuf-tools/include        --go_out=contracts/go/gen --go_opt=paths=source_relative        --go-grpc_out=contracts/go/gen --go-grpc_opt=paths=source_relative        contracts/proto/latencystorm/v1/*.proto
+WORKDIR /repo/contracts/go
+RUN if [ "$UPDATE_LOCKS" = true ]; then go mod tidy; else go mod download && go mod tidy -diff; fi
+RUN gofmt -w compat && go vet -mod=readonly ./...
+
+FROM dotnet-tools AS verify
+COPY --from=go-tools /usr/local/go /usr/local/go
+COPY --from=go-tools /go /go
+COPY --from=go-tools /repo/contracts/go /repo/contracts/go
+ENV PATH="/usr/local/go/bin:/go/bin:${PATH}" GOTOOLCHAIN=local
+COPY contracts/events/ contracts/events/
+WORKDIR /repo
+RUN mkdir -p .artifacts && dotnet run --no-build --project tests/contracts/csharp/ContractCheck.csproj -- contracts/events/examples/result-batch.v1.json .artifacts/csharp.json && cd contracts/go && CONTRACT_ROOT=/repo go test -mod=readonly -v ./... && cd /repo && dotnet run --no-build --project tests/contracts/csharp/ContractCheck.csproj -- .artifacts/go.json .artifacts/go-roundtrip.json
+# Export generated Go sources and exact dependency lockfiles with BuildKit.
+FROM scratch AS export
+COPY --from=verify /repo/contracts/go/gen /go/gen
+COPY --from=verify /repo/contracts/go/go.mod /go/go.mod
+COPY --from=verify /repo/contracts/go/go.sum /go/go.sum
+COPY --from=verify /repo/contracts/csharp/packages.lock.json /csharp/packages.lock.json
+COPY --from=verify /repo/tests/contracts/csharp/packages.lock.json /checks/packages.lock.json
+COPY --from=verify /repo/contracts/go/compat/compat_test.go /checks/compat_test.go
