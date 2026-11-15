@@ -1,0 +1,5 @@
+CREATE TABLE scenarios (id uuid PRIMARY KEY, name text NOT NULL, method text NOT NULL, url text NOT NULL, headers jsonb NOT NULL, body text, target_rps integer NOT NULL, duration_seconds integer NOT NULL, request_timeout_ms integer NOT NULL, concurrency_limit integer NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE runs (id uuid PRIMARY KEY, scenario_id uuid NOT NULL REFERENCES scenarios(id), scenario_snapshot jsonb NOT NULL, state text NOT NULL CHECK (state IN ('pending','running','stopping','completed','failed','cancelled')), created_at timestamptz NOT NULL DEFAULT now(), stopped_at timestamptz);
+CREATE UNIQUE INDEX one_active_run ON runs ((true)) WHERE state IN ('pending','running','stopping');
+CREATE TABLE agents (id uuid PRIMARY KEY, state text NOT NULL CHECK (state IN ('ready','busy','offline')), reserved_run_id uuid REFERENCES runs(id));
+CREATE TABLE assignments (id uuid PRIMARY KEY, run_id uuid NOT NULL REFERENCES runs(id), agent_id uuid NOT NULL REFERENCES agents(id), target_rps integer NOT NULL, state text NOT NULL);
