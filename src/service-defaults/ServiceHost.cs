@@ -14,7 +14,7 @@ namespace LatencyStorm.ServiceDefaults;
 
 public static class ServiceHost
 {
-    public static async Task RunAsync(string[] args, string serviceName)
+    public static async Task RunAsync(string[] args, string serviceName, Action<WebApplication>? configure = null)
     {
         // Container health checks use the same runtime and need no curl installation.
         if (args is ["--healthcheck"])
@@ -50,6 +50,7 @@ public static class ServiceHost
             $"latencystorm_service_ready{{service=\"{serviceName}\"}} {(state.Ready ? 1 : 0).ToString(CultureInfo.InvariantCulture)}\n",
             "text/plain; version=0.0.4"));
         app.MapGet("/", () => Results.Ok(new { service = serviceName, stage = "infrastructure" }));
+        configure?.Invoke(app);
         await app.RunAsync();
     }
 }
