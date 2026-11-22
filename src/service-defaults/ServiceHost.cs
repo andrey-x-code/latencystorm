@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Confluent.Kafka;
+using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -12,9 +13,27 @@ using Npgsql;
 
 namespace LatencyStorm.ServiceDefaults;
 
+/// <summary>
+/// Настраивает общий HTTP-хост, проверку зависимостей и применение миграций сервисов.
+/// </summary>
 public static class ServiceHost
 {
-    public static async Task RunAsync(string[] args, string serviceName)
+    /// <summary>
+    /// Запускает сервис с общей инфраструктурой и необязательной настройкой маршрутов.
+    /// </summary>
+    public static Task RunAsync(string[] args, string serviceName, Action<WebApplication>? configure = null)
+    {
+        return RunAsync(args, serviceName, configure, _ => { });
+    }
+
+    /// <summary>
+    /// Регистрирует зависимости приложения до построения хоста, настраивает маршруты и запускает сервис.
+    /// </summary>
+    public static async Task RunAsync(
+        string[] args,
+        string serviceName,
+        Action<WebApplication>? configure,
+        Action<IServiceCollection> configureServices)
     {
         // Container health checks use the same runtime and need no curl installation.
         if (args is ["--healthcheck"])
@@ -39,6 +58,7 @@ public static class ServiceHost
         builder.Services.AddSingleton(NpgsqlDataSource.Create(database));
         builder.Services.AddSingleton(new DependencyState(serviceName));
         builder.Services.AddHostedService<DependencyMonitor>();
+        configureServices(builder.Services);
         var app = builder.Build();
         app.MapGet("/health", () => Results.Ok(new { status = "alive", service = serviceName }));
         app.MapGet("/ready", (DependencyState state) => state.Ready
@@ -50,24 +70,39 @@ public static class ServiceHost
             $"latencystorm_service_ready{{service=\"{serviceName}\"}} {(state.Ready ? 1 : 0).ToString(CultureInfo.InvariantCulture)}\n",
             "text/plain; version=0.0.4"));
         app.MapGet("/", () => Results.Ok(new { service = serviceName, stage = "infrastructure" }));
+        configure?.Invoke(app);
         await app.RunAsync();
     }
 }
 
+/// <summary>
+/// Потокобезопасно хранит готовность зависимостей сервиса.
+/// </summary>
 internal sealed class DependencyState(string serviceName)
 {
     private int ready;
+    /// <summary>Имя сервиса для диагностических сообщений и проверки зависимостей.</summary>
     public string ServiceName { get; } = serviceName;
+
+    /// <summary>Признак успешной проверки зависимостей и применения миграций.</summary>
     public bool Ready => Volatile.Read(ref ready) == 1;
+
+    /// <summary>Атомарно обновляет признак готовности сервиса.</summary>
     public void Set(bool value) => Volatile.Write(ref ready, value ? 1 : 0);
 }
 
+/// <summary>
+/// Периодически проверяет PostgreSQL и Kafka, применяет миграции и обновляет готовность сервиса.
+/// </summary>
 internal sealed class DependencyMonitor(
     NpgsqlDataSource database,
     DependencyState state,
     IConfiguration configuration,
     ILogger<DependencyMonitor> logger) : BackgroundService
 {
+    /// <summary>
+    /// Проверяет зависимости с ограниченными таймаутами до отмены работы хоста.
+    /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var kafka = new AdminClientBuilder(new AdminClientConfig
@@ -88,8 +123,8 @@ internal sealed class DependencyMonitor(
                 timeout.CancelAfter(TimeSpan.FromSeconds(5));
                 await using var connection = await database.OpenConnectionAsync(timeout.Token);
                 await MigrationRunner.ApplyAsync(connection, timeout.Token);
-                await using var probe = new NpgsqlCommand("SELECT 1", connection);
-                await probe.ExecuteScalarAsync(timeout.Token);
+                await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                    "SELECT 1", cancellationToken: timeout.Token));
                 // librdkafka metadata has a bounded native timeout; await it before disposing the client.
                 var metadata = await Task.Run(() => kafka.GetMetadata(TimeSpan.FromSeconds(2)), stoppingToken);
                 ready = metadata.Brokers.Count > 0;
@@ -121,8 +156,14 @@ internal sealed class DependencyMonitor(
     }
 }
 
+/// <summary>
+/// Применяет SQL-миграции по порядку и проверяет контрольные суммы ранее применённых файлов.
+/// </summary>
 internal static class MigrationRunner
 {
+    /// <summary>
+    /// Применяет недостающие миграции в транзакции с блокировкой от параллельного запуска.
+    /// </summary>
     public static async Task ApplyAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         var directory = Path.Combine(AppContext.BaseDirectory, "migrations");
@@ -132,21 +173,20 @@ internal static class MigrationRunner
         }
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         // Transaction-scoped lock serializes concurrent starts of this service in its own database.
-        await using var initialize = new NpgsqlCommand("""
+        await connection.ExecuteAsync(new CommandDefinition("""
             SELECT pg_advisory_xact_lock(71294021);
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now()
             );
-            """, connection, transaction);
-        await initialize.ExecuteNonQueryAsync(cancellationToken);
+            """, transaction: transaction, cancellationToken: cancellationToken));
         foreach (var path in Directory.GetFiles(directory, "*.sql").Order(StringComparer.Ordinal))
         {
             var name = Path.GetFileName(path);
             var sql = await File.ReadAllTextAsync(path, cancellationToken);
             var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql.Replace("\r\n", "\n", StringComparison.Ordinal))));
-            await using var lookup = new NpgsqlCommand("SELECT checksum FROM schema_migrations WHERE name = $1", connection, transaction);
-            lookup.Parameters.AddWithValue(name);
-            var applied = await lookup.ExecuteScalarAsync(cancellationToken);
+            var applied = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+                "SELECT checksum FROM schema_migrations WHERE name = @Name",
+                new { Name = name }, transaction, cancellationToken: cancellationToken));
             if (applied is string stored)
             {
                 if (stored != checksum)
@@ -155,12 +195,11 @@ internal static class MigrationRunner
                 }
                 continue;
             }
-            await using var migration = new NpgsqlCommand(sql, connection, transaction);
-            await migration.ExecuteNonQueryAsync(cancellationToken);
-            await using var record = new NpgsqlCommand("INSERT INTO schema_migrations(name, checksum) VALUES ($1, $2)", connection, transaction);
-            record.Parameters.AddWithValue(name);
-            record.Parameters.AddWithValue(checksum);
-            await record.ExecuteNonQueryAsync(cancellationToken);
+            await connection.ExecuteAsync(new CommandDefinition(
+                sql, transaction: transaction, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO schema_migrations(name, checksum) VALUES (@Name, @Checksum)",
+                new { Name = name, Checksum = checksum }, transaction, cancellationToken: cancellationToken));
         }
         await transaction.CommitAsync(cancellationToken);
     }

@@ -10,6 +10,11 @@
           "librdkafka.redist": "2.10.0"
         }
       },
+      "Dapper": {
+        "type": "Transitive",
+        "resolved": "2.1.66",
+        "contentHash": "/q77jUgDOS+bzkmk3Vy9SiWMaetTw+NOoPAV0xPBsGVAyljd5S6P+4RUW7R3ZUGGr9lDRyPKgAMj2UAOwvqZYw=="
+      },
       "librdkafka.redist": {
         "type": "Transitive",
         "resolved": "2.10.0",
@@ -24,6 +29,7 @@
         "type": "Project",
         "dependencies": {
           "Confluent.Kafka": "[2.10.0, )",
+          "Dapper": "[2.1.66, )",
           "Npgsql": "[9.0.4, )"
         }
       }
