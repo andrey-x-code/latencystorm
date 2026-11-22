@@ -1,5 +1,8 @@
 ﻿// Explicit aliases keep database naming independent of Dapper global settings.
 // JSONB stays a string here to preserve the existing HTTP response format.
+/// <summary>
+/// Результат чтения сценария из БД; JSON заголовков передаётся строкой в существующем формате API.
+/// </summary>
 sealed class ScenarioRow
 {
     public const string SelectSql = """
@@ -22,6 +25,9 @@ sealed class ScenarioRow
     public DateTime CreatedAt { get; set; }
 }
 
+/// <summary>
+/// Краткие сведения о запуске; временные метки хранятся в UTC.
+/// </summary>
 class RunRow
 {
     public const string SelectSql = """
@@ -36,6 +42,9 @@ class RunRow
     public DateTime? StoppedAt { get; set; }
 }
 
+/// <summary>
+/// Подробные сведения о запуске с неизменяемым JSON-снимком сценария.
+/// </summary>
 sealed class RunDetailsRow : RunRow
 {
     public string Snapshot { get; set; } = null!;

@@ -1,6 +1,6 @@
-# Control API v1
+# API управления v1
 
-Control API stores scenarios and run state in the control PostgreSQL database. Register an available agent before creating a run:
+Control API хранит сценарии и состояние запусков в собственной базе PostgreSQL. Перед созданием запуска зарегистрируйте доступного агента:
 
 ```powershell
 $agent = [guid]::NewGuid()
@@ -12,6 +12,6 @@ $scenario = Invoke-RestMethod http://localhost:8080/scenarios -Method Post -Cont
 Invoke-RestMethod http://localhost:8080/runs -Method Post -ContentType 'application/json' -Body (@{ scenarioId=$scenario.id } | ConvertTo-Json)
 ```
 
-Scenario URLs must be absolute HTTP or HTTPS URLs. RPS, duration, timeout, and concurrency are bounded at the API boundary. A run stores an immutable JSON snapshot of its scenario. Only one `pending`, `running`, or `stopping` run can exist; PostgreSQL enforces this invariant. `POST /runs/{id}/stop` is idempotent and transitions active runs to `stopping`.
+URL сценария должен быть абсолютным адресом HTTP или HTTPS. На входе API проверяются допустимые значения RPS, длительности, таймаута запроса и предела одновременных запросов. Запуск хранит неизменяемый JSON-снимок своего сценария. Одновременно может существовать только один запуск в состоянии `pending`, `running` или `stopping`; это ограничение обеспечивает PostgreSQL. Метод `POST /runs/{id}/stop` идемпотентен и переводит активный запуск в состояние `stopping`.
 
-The current stage exposes a small agent registration endpoint for local orchestration. Agent gRPC assignment and load execution are implemented in later stages.
+На текущем этапе доступен вспомогательный эндпоинт регистрации агента для локального управления запусками. Выдача назначений агентам по gRPC и генерация нагрузки будут реализованы на следующих этапах.

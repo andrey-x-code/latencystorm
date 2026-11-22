@@ -1,5 +1,11 @@
-﻿record RunRequest(Guid ScenarioId);
+/// <summary>
+/// Параметры создания запуска на основе сохранённого сценария.
+/// </summary>
+record RunRequest(Guid ScenarioId);
 
+/// <summary>
+/// Параметры HTTP-сценария: RPS, длительность в секундах, таймаут в миллисекундах и предел одновременных запросов.
+/// </summary>
 record ScenarioRequest(
     string Name,
     string Method,
@@ -11,6 +17,9 @@ record ScenarioRequest(
     int RequestTimeoutMs,
     int ConcurrencyLimit)
 {
+    /// <summary>
+    /// Возвращает описание первой ошибки параметров или null, если параметры допустимы.
+    /// </summary>
     public string? Validate()
     {
         if (string.IsNullOrWhiteSpace(Name) || Name.Length > 200)

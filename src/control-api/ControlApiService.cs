@@ -2,8 +2,14 @@ using System.Text.Json;
 using Dapper;
 using Npgsql;
 
+/// <summary>
+/// Обрабатывает операции API управления сценариями, запусками и регистрацией агентов.
+/// </summary>
 sealed class ControlApiService(NpgsqlDataSource db)
 {
+    /// <summary>
+    /// Проверяет параметры сценария, сохраняет его и возвращает ответ с адресом созданного ресурса.
+    /// </summary>
     public async Task<IResult> CreateScenarioAsync(ScenarioRequest request, CancellationToken ct)
     {
         var validation = request.Validate();
@@ -55,6 +61,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         });
     }
 
+    /// <summary>
+    /// Возвращает сценарии в порядке от новых к старым.
+    /// </summary>
     public async Task<IResult> ListScenariosAsync(CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -63,6 +72,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return Results.Ok(scenarios);
     }
 
+    /// <summary>
+    /// Возвращает сценарий по идентификатору или ответ об отсутствии ресурса.
+    /// </summary>
     public async Task<IResult> GetScenarioAsync(Guid id, CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -71,6 +83,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return scenario is null ? Results.NotFound() : Results.Ok(scenario);
     }
 
+    /// <summary>
+    /// Создаёт запуск со снимком сценария и резервирует свободного агента в одной транзакции.
+    /// </summary>
     public async Task<IResult> CreateRunAsync(RunRequest request, CancellationToken ct)
     {
         if (request.ScenarioId == Guid.Empty)
@@ -146,6 +161,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return Results.Created($"/runs/{id}", new { id, scenarioId = request.ScenarioId, state = "pending", snapshot });
     }
 
+    /// <summary>
+    /// Регистрирует агента как готового, сбрасывая его текущее резервирование запуска.
+    /// </summary>
     public async Task<IResult> RegisterAgentAsync(Guid id, CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -158,6 +176,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return Results.Ok(new { id, state = "ready" });
     }
 
+    /// <summary>
+    /// Возвращает запуски в порядке от новых к старым.
+    /// </summary>
     public async Task<IResult> ListRunsAsync(CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -166,6 +187,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return Results.Ok(runs);
     }
 
+    /// <summary>
+    /// Возвращает состояние запуска и сохранённый снимок сценария.
+    /// </summary>
     public async Task<IResult> GetRunAsync(Guid id, CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -179,6 +203,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return run is null ? Results.NotFound() : Results.Ok(run);
     }
 
+    /// <summary>
+    /// Переводит pending или running в stopping; повторный вызов сохраняет состояние и время остановки.
+    /// </summary>
     public async Task<IResult> StopRunAsync(Guid id, CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -194,6 +221,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return state is null ? Results.NotFound() : Results.Ok(new { id, state });
     }
 
+    /// <summary>
+    /// Завершает активный запуск и освобождает зарезервированных агентов в одной транзакции.
+    /// </summary>
     public async Task<IResult> CompleteRunAsync(Guid id, CancellationToken ct)
     {
         await using var connection = await db.OpenConnectionAsync(ct);
@@ -217,6 +247,9 @@ sealed class ControlApiService(NpgsqlDataSource db)
         return Results.Ok(new { id, state });
     }
 
+    /// <summary>
+    /// Возвращает текущее краткое описание API в формате OpenAPI.
+    /// </summary>
     public IResult GetOpenApi() => Results.Json(new
     {
         openapi = "3.0.3",
