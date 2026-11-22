@@ -1,0 +1,15 @@
+FROM golang:1.26.10-bookworm AS check
+WORKDIR /src
+COPY src/go.mod src/go.sum ./
+COPY src/go-common/ go-common/
+COPY src/load-agent/ load-agent/
+COPY src/demo-target/ demo-target/
+RUN test -z "$(gofmt -l load-agent)" && go mod tidy -diff && go vet ./... && go test ./... && go test -race ./... && go test -race -tags=integration ./...
+RUN CGO_ENABLED=0 go build -trimpath -o /out/load-agent ./load-agent && CGO_ENABLED=0 go build -trimpath -o /out/demo-target ./demo-target
+FROM python:3.13.9-slim AS smoke
+COPY --from=check /out/ /bin/
+COPY tests/load-engine/smoke.py /smoke.py
+RUN python /smoke.py
+FROM scratch AS export
+COPY --from=check /out /bin
+COPY --from=smoke /smoke.py /smoke.py

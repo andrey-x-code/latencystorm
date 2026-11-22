@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "url": "http://127.0.0.1:8083/",
+  "headers": {},
+  "body": "",
+  "rps": 20,
+  "durationMs": 3000,
+  "requestTimeoutMs": 1000,
+  "maxConcurrency": 10,
+  "maxResponseBodyBytes": 1048576,
+  "drainTimeoutMs": 1000
+}
