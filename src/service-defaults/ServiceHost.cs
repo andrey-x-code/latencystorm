@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Confluent.Kafka;
+using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -89,8 +90,8 @@ internal sealed class DependencyMonitor(
                 timeout.CancelAfter(TimeSpan.FromSeconds(5));
                 await using var connection = await database.OpenConnectionAsync(timeout.Token);
                 await MigrationRunner.ApplyAsync(connection, timeout.Token);
-                await using var probe = new NpgsqlCommand("SELECT 1", connection);
-                await probe.ExecuteScalarAsync(timeout.Token);
+                await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                    "SELECT 1", cancellationToken: timeout.Token));
                 // librdkafka metadata has a bounded native timeout; await it before disposing the client.
                 var metadata = await Task.Run(() => kafka.GetMetadata(TimeSpan.FromSeconds(2)), stoppingToken);
                 ready = metadata.Brokers.Count > 0;
@@ -133,21 +134,20 @@ internal static class MigrationRunner
         }
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         // Transaction-scoped lock serializes concurrent starts of this service in its own database.
-        await using var initialize = new NpgsqlCommand("""
+        await connection.ExecuteAsync(new CommandDefinition("""
             SELECT pg_advisory_xact_lock(71294021);
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now()
             );
-            """, connection, transaction);
-        await initialize.ExecuteNonQueryAsync(cancellationToken);
+            """, transaction: transaction, cancellationToken: cancellationToken));
         foreach (var path in Directory.GetFiles(directory, "*.sql").Order(StringComparer.Ordinal))
         {
             var name = Path.GetFileName(path);
             var sql = await File.ReadAllTextAsync(path, cancellationToken);
             var checksum = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql.Replace("\r\n", "\n", StringComparison.Ordinal))));
-            await using var lookup = new NpgsqlCommand("SELECT checksum FROM schema_migrations WHERE name = $1", connection, transaction);
-            lookup.Parameters.AddWithValue(name);
-            var applied = await lookup.ExecuteScalarAsync(cancellationToken);
+            var applied = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
+                "SELECT checksum FROM schema_migrations WHERE name = @Name",
+                new { Name = name }, transaction, cancellationToken: cancellationToken));
             if (applied is string stored)
             {
                 if (stored != checksum)
@@ -156,12 +156,11 @@ internal static class MigrationRunner
                 }
                 continue;
             }
-            await using var migration = new NpgsqlCommand(sql, connection, transaction);
-            await migration.ExecuteNonQueryAsync(cancellationToken);
-            await using var record = new NpgsqlCommand("INSERT INTO schema_migrations(name, checksum) VALUES ($1, $2)", connection, transaction);
-            record.Parameters.AddWithValue(name);
-            record.Parameters.AddWithValue(checksum);
-            await record.ExecuteNonQueryAsync(cancellationToken);
+            await connection.ExecuteAsync(new CommandDefinition(
+                sql, transaction: transaction, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO schema_migrations(name, checksum) VALUES (@Name, @Checksum)",
+                new { Name = name, Checksum = checksum }, transaction, cancellationToken: cancellationToken));
         }
         await transaction.CommitAsync(cancellationToken);
     }
