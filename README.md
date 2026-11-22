@@ -18,6 +18,8 @@ To generate and verify contracts, run `python scripts/verify-contracts.py` from 
 
 ### Planned architecture
 
+Stage 3 adds the [Control API](docs/control-api-v1.md). Stage 4 provides a standalone single-agent load engine with a [local configuration example](examples/load-agent/local.json) and [run and verification instructions](docs/load-engine-v1.md). gRPC coordination and Kafka measurement delivery are planned for stage 5.
+
 | Component | Technology | Responsibility |
 | --- | --- | --- |
 | Control API | C# / ASP.NET Core | Manage scenarios and runs, assign work to agents, and track execution state |
@@ -86,6 +88,8 @@ LatencyStorm — платформа для распределённого наг
 Для генерации и проверки контрактов выполните `python scripts/verify-contracts.py` из корня репозитория с Python 3.9+ и Docker Desktop в режиме Linux containers. Устанавливать .NET, Go и protoc на хост не требуется. При первом запуске загружаются образы SDK и зависимости. Локальное окружение этапа 2 описано в [`docs/infrastructure-v1.md`](docs/infrastructure-v1.md).
 
 ### Планируемая архитектура
+
+Этап 3 добавляет [Control API](docs/control-api-v1.md). Этап 4 реализует автономный генератор нагрузки одного агента: [пример локальной конфигурации](examples/load-agent/local.json), [инструкция запуска и проверки](docs/load-engine-v1.md). Управление по gRPC и доставка измерений через Kafka относятся к этапу 5.
 
 | Компонент | Технология | Назначение |
 | --- | --- | --- |

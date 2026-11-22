@@ -37,6 +37,9 @@ func probe(ctx context.Context, client *http.Client, control, broker string) err
 	return err
 }
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--local" {
+		os.Exit(localMain(os.Args[2:]))
+	}
 	if common.Healthcheck() {
 		return
 	}
