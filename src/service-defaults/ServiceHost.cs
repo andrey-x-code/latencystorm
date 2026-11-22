@@ -15,7 +15,16 @@ namespace LatencyStorm.ServiceDefaults;
 
 public static class ServiceHost
 {
-    public static async Task RunAsync(string[] args, string serviceName, Action<WebApplication>? configure = null)
+    public static Task RunAsync(string[] args, string serviceName, Action<WebApplication>? configure = null)
+    {
+        return RunAsync(args, serviceName, configure, _ => { });
+    }
+
+    public static async Task RunAsync(
+        string[] args,
+        string serviceName,
+        Action<WebApplication>? configure,
+        Action<IServiceCollection> configureServices)
     {
         // Container health checks use the same runtime and need no curl installation.
         if (args is ["--healthcheck"])
@@ -40,6 +49,7 @@ public static class ServiceHost
         builder.Services.AddSingleton(NpgsqlDataSource.Create(database));
         builder.Services.AddSingleton(new DependencyState(serviceName));
         builder.Services.AddHostedService<DependencyMonitor>();
+        configureServices(builder.Services);
         var app = builder.Build();
         app.MapGet("/health", () => Results.Ok(new { status = "alive", service = serviceName }));
         app.MapGet("/ready", (DependencyState state) => state.Ready
