@@ -6,11 +6,11 @@ Control API резервирует одного подключённого аг�
 
 ## Проверка
 
-Из корня репозитория, в PowerShell с запущенным Docker:
+Из корня репозитория, с Python 3.10+ и запущенным Docker:
 
-```powershell
+```sh
 docker compose -p latencystorm-stage05 --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml up --build --wait
-./tests/infrastructure/stage05.ps1
+python tests/infrastructure/stage05.py
 docker compose -p latencystorm-stage05 --env-file deploy/compose/.env.example -f deploy/compose/compose.yaml down
 ```
 
