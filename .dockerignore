@@ -2,4 +2,6 @@
 **/bin
 **/obj
 **/gen
+!contracts/go/gen
+!contracts/go/gen/**
 .artifacts

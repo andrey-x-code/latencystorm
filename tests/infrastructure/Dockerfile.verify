@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS dotnet-check
 WORKDIR /repo
 COPY global.json ./
+COPY contracts/ contracts/
 COPY src/service-defaults/ src/service-defaults/
 COPY src/control-api/ src/control-api/
 COPY src/results-service/ src/results-service/
@@ -9,6 +10,7 @@ RUN dotnet build src/control-api/LatencyStorm.ControlApi.csproj --no-restore && 
 RUN dotnet format src/service-defaults/LatencyStorm.ServiceDefaults.csproj --no-restore --verify-no-changes && dotnet format src/control-api/LatencyStorm.ControlApi.csproj --no-restore --verify-no-changes && dotnet format src/results-service/LatencyStorm.ResultsService.csproj --no-restore --verify-no-changes
 FROM golang:1.26.10-bookworm AS go-check
 WORKDIR /src
+COPY contracts/go/ /contracts/go/
 COPY src/go.mod src/go.sum ./
 COPY src/go-common/ go-common/
 COPY src/load-agent/ load-agent/

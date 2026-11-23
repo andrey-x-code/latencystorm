@@ -5,7 +5,7 @@ using Npgsql;
 /// <summary>
 /// Обрабатывает операции API управления сценариями, запусками и регистрацией агентов.
 /// </summary>
-sealed class ControlApiService(NpgsqlDataSource db)
+sealed class ControlApiService(NpgsqlDataSource db, AgentSlot slot)
 {
     /// <summary>
     /// Проверяет параметры сценария, сохраняет его и возвращает ответ с адресом созданного ресурса.
@@ -93,8 +93,15 @@ sealed class ControlApiService(NpgsqlDataSource db)
             return Results.BadRequest(new { error = "scenarioId is required" });
         }
 
+        if (slot.AgentId is not Guid liveAgent)
+        {
+            return Results.Conflict(new { error = "no ready agents available" });
+        }
+
         await using var connection = await db.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
+        await connection.ExecuteAsync(new CommandDefinition("SELECT pg_advisory_xact_lock(71294022)",
+            transaction: transaction, cancellationToken: ct));
         var scenario = await connection.QuerySingleOrDefaultAsync<ScenarioRow>(new CommandDefinition(
             ScenarioRow.SelectSql + " WHERE id = @ScenarioId FOR SHARE",
             new { request.ScenarioId }, transaction, cancellationToken: ct));
@@ -108,7 +115,7 @@ sealed class ControlApiService(NpgsqlDataSource db)
             name = scenario.Name,
             method = scenario.Method,
             url = scenario.Url,
-            headers = scenario.Headers,
+            headers = JsonSerializer.Deserialize<Dictionary<string, string>>(scenario.Headers),
             body = scenario.Body,
             targetRps = scenario.TargetRps,
             durationSeconds = scenario.DurationSeconds,
@@ -126,10 +133,10 @@ sealed class ControlApiService(NpgsqlDataSource db)
         var agentId = await connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition(
             """
             SELECT id FROM agents
-            WHERE state = 'ready' AND reserved_run_id IS NULL
+            WHERE id = @LiveAgent AND state = 'ready' AND reserved_run_id IS NULL
             ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
             """,
-            transaction: transaction, cancellationToken: ct));
+            new { LiveAgent = liveAgent }, transaction, cancellationToken: ct));
         if (agentId is null)
         {
             return Results.Conflict(new { error = "no ready agents available" });
@@ -159,21 +166,6 @@ sealed class ControlApiService(NpgsqlDataSource db)
         await transaction.CommitAsync(ct);
 
         return Results.Created($"/runs/{id}", new { id, scenarioId = request.ScenarioId, state = "pending", snapshot });
-    }
-
-    /// <summary>
-    /// Регистрирует агента как готового, сбрасывая его текущее резервирование запуска.
-    /// </summary>
-    public async Task<IResult> RegisterAgentAsync(Guid id, CancellationToken ct)
-    {
-        await using var connection = await db.OpenConnectionAsync(ct);
-        await connection.ExecuteAsync(new CommandDefinition(
-            """
-            INSERT INTO agents (id, state) VALUES (@Id, 'ready')
-            ON CONFLICT (id) DO UPDATE SET state = 'ready', reserved_run_id = NULL
-            """,
-            new { Id = id }, cancellationToken: ct));
-        return Results.Ok(new { id, state = "ready" });
     }
 
     /// <summary>
@@ -219,32 +211,6 @@ sealed class ControlApiService(NpgsqlDataSource db)
             """,
             new { Id = id }, cancellationToken: ct));
         return state is null ? Results.NotFound() : Results.Ok(new { id, state });
-    }
-
-    /// <summary>
-    /// Завершает активный запуск и освобождает зарезервированных агентов в одной транзакции.
-    /// </summary>
-    public async Task<IResult> CompleteRunAsync(Guid id, CancellationToken ct)
-    {
-        await using var connection = await db.OpenConnectionAsync(ct);
-        await using var transaction = await connection.BeginTransactionAsync(ct);
-        var state = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
-            """
-            UPDATE runs SET state = 'completed'
-            WHERE id = @Id AND state IN ('pending', 'running', 'stopping')
-            RETURNING state
-            """,
-            new { Id = id }, transaction, cancellationToken: ct));
-        if (state is null)
-        {
-            return Results.NotFound();
-        }
-
-        await connection.ExecuteAsync(new CommandDefinition(
-            "UPDATE agents SET reserved_run_id = NULL, state = 'ready' WHERE reserved_run_id = @Id",
-            new { Id = id }, transaction, cancellationToken: ct));
-        await transaction.CommitAsync(ct);
-        return Results.Ok(new { id, state });
     }
 
     /// <summary>

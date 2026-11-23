@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../service-defaults/LatencyStorm.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../contracts/csharp/LatencyStorm.Contracts.csproj" />
+    <PackageReference Include="Grpc.AspNetCore.Server" Version="2.71.0" />
     <Content Include="migrations/*.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

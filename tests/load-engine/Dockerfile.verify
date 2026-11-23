@@ -1,5 +1,6 @@
 FROM golang:1.26.10-bookworm AS check
 WORKDIR /src
+COPY contracts/go/ /contracts/go/
 COPY src/go.mod src/go.sum ./
 COPY src/go-common/ go-common/
 COPY src/load-agent/ load-agent/

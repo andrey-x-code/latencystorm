@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS build
 WORKDIR /repo
 COPY global.json ./
+COPY contracts/ contracts/
 COPY src/service-defaults/ src/service-defaults/
 COPY src/control-api/ src/control-api/
 RUN dotnet restore src/control-api/LatencyStorm.ControlApi.csproj --locked-mode
