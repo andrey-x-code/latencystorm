@@ -42,6 +42,10 @@ services:
     environment:
       DATABASE_URL: 'Host=postgres;Database=control;Username=control;Password=${CONTROL_DB_PASSWORD};Timeout=3;Command Timeout=5'
       KAFKA_BROKERS: kafka:9092
+      RESULTS_GRPC_URL: http://results-service:8081
+      Kestrel__Endpoints__Http__Url: http://0.0.0.0:8080
+      Kestrel__Endpoints__Grpc__Url: http://0.0.0.0:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
     ports: ['127.0.0.1:8080:8080']
     depends_on:
       postgres: {condition: service_healthy}
@@ -54,6 +58,9 @@ services:
     environment:
       DATABASE_URL: 'Host=postgres;Database=results;Username=results;Password=${RESULTS_DB_PASSWORD};Timeout=3;Command Timeout=5'
       KAFKA_BROKERS: kafka:9092
+      Kestrel__Endpoints__Http__Url: http://0.0.0.0:8080
+      Kestrel__Endpoints__Grpc__Url: http://0.0.0.0:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
     ports: ['127.0.0.1:8081:8080']
     depends_on:
       postgres: {condition: service_healthy}
@@ -61,11 +68,11 @@ services:
     stop_grace_period: 15s
   load-agent:
     build:
-      context: ../../src
-      dockerfile: load-agent/Dockerfile
+      context: ../..
+      dockerfile: src/load-agent/Dockerfile
     environment:
       AGENT_ID: agent-01
-      CONTROL_API_URL: http://control-api:8080
+      CONTROL_API_URL: http://control-api:8081
       KAFKA_BROKERS: kafka:9092
     ports: ['127.0.0.1:8082:8080']
     depends_on:
@@ -78,8 +85,8 @@ services:
       retries: 20
   demo-target:
     build:
-      context: ../../src
-      dockerfile: demo-target/Dockerfile
+      context: ../..
+      dockerfile: src/demo-target/Dockerfile
     environment:
       DEMO_DELAY_MS: ${DEMO_DELAY_MS:-0}
       DEMO_STATUS_CODE: ${DEMO_STATUS_CODE:-200}

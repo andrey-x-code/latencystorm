@@ -37,19 +37,21 @@ record ScenarioRequest(
             return "headers must contain at most 100 entries";
         }
 
-        if (Headers.Any(header => header.Key.Length > 256 || header.Value.Length > 8192))
+        if (Headers.Any(header => string.IsNullOrEmpty(header.Key) || header.Key.Length > 256 ||
+            header.Value is null || header.Value.Length > 8192 || header.Value.Contains('\r') || header.Value.Contains('\n')))
         {
             return "header names must be <= 256 and values <= 8192 characters";
         }
 
-        if (Body is not null && Body.Length > 1_048_576)
+        if (Body is not null && System.Text.Encoding.UTF8.GetByteCount(Body) > 1_048_576)
         {
-            return "body must be <= 1048576 characters";
+            return "body must be <= 1048576 bytes";
         }
 
         if (!Uri.TryCreate(Url, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https") ||
-            string.IsNullOrWhiteSpace(uri.Host))
+            string.IsNullOrWhiteSpace(uri.Host) || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0 ||
+            System.Text.Encoding.UTF8.GetByteCount(Url) > 8192)
         {
             return "url must be an absolute HTTP or HTTPS URL";
         }

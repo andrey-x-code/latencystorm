@@ -18,7 +18,7 @@ To generate and verify contracts, run `python scripts/verify-contracts.py` from 
 
 ### Planned architecture
 
-Stage 3 adds the [Control API](docs/control-api-v1.md). Stage 4 provides a standalone single-agent load engine with a [local configuration example](examples/load-agent/local.json) and [run and verification instructions](docs/load-engine-v1.md). gRPC coordination and Kafka measurement delivery are planned for stage 5.
+Stage 3 adds the [Control API](docs/control-api-v1.md). Stage 4 provides a [standalone load engine](docs/load-engine-v1.md). Stage 5 connects one agent to the Control API over gRPC and persists Kafka measurements in the Results Service; see the [end-to-end verification](docs/stage-05-v1.md).
 
 | Component | Technology | Responsibility |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ LatencyStorm — платформа для распределённого наг
 
 ### Планируемая архитектура
 
-Этап 3 добавляет [Control API](docs/control-api-v1.md). Этап 4 реализует автономный генератор нагрузки одного агента: [пример локальной конфигурации](examples/load-agent/local.json), [инструкция запуска и проверки](docs/load-engine-v1.md). Управление по gRPC и доставка измерений через Kafka относятся к этапу 5.
+Этап 3 добавляет [Control API](docs/control-api-v1.md). Этап 4 реализует [автономный генератор нагрузки](docs/load-engine-v1.md). Этап 5 подключает одного агента по gRPC и сохраняет измерения из Kafka в Results Service; см. [сквозную проверку](docs/stage-05-v1.md).
 
 | Компонент | Технология | Назначение |
 | --- | --- | --- |

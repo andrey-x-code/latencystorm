@@ -36,6 +36,17 @@ func (e *Engine) run(ctx context.Context, config Config, execute func(context.Co
 
 // runWithClock позволяет задержать пробуждение планировщика в тесте с управляемыми часами.
 func (e *Engine) runWithClock(ctx context.Context, config Config, execute func(context.Context, *http.Client, Config) outcome, nowTime func() time.Time) (Result, error) {
+	return e.runScheduled(ctx, config, execute, nowTime, time.Time{}, nil)
+}
+
+// RunScheduled сохраняет сетку слотов координатора даже при позднем пробуждении агента.
+func (e *Engine) RunScheduled(ctx context.Context, config Config, start time.Time, onStart func(time.Time)) (Result, error) {
+	return e.runScheduled(ctx, config, perform, time.Now, start, onStart)
+}
+
+// runScheduled запускает общий планировщик с переданной или локальной точкой отсчёта.
+func (e *Engine) runScheduled(ctx context.Context, config Config, execute func(context.Context, *http.Client, Config) outcome,
+	nowTime func() time.Time, start time.Time, onStart func(time.Time)) (Result, error) {
 	if !e.used.CompareAndSwap(false, true) {
 		return Result{}, fmt.Errorf("engine can only run once")
 	}
@@ -54,7 +65,9 @@ func (e *Engine) runWithClock(ctx context.Context, config Config, execute func(c
 	requestsCtx, cancelRequests := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelRequests()
 	outcomes := make(chan outcome, config.MaxConcurrency)
-	start := nowTime()
+	if start.IsZero() || ctx.Err() != nil {
+		start = nowTime()
+	}
 	end := start.Add(time.Duration(config.DurationMs) * time.Millisecond)
 	result := Result{PlannedRequests: config.PlannedRequests()}
 	interval := newInterval(start.UTC())
@@ -133,6 +146,9 @@ func (e *Engine) runWithClock(ctx context.Context, config Config, execute func(c
 				if result.ActualStartAt == nil {
 					actual := start.UTC().Add(now.Sub(start))
 					result.ActualStartAt = &actual
+					if onStart != nil {
+						onStart(actual)
+					}
 				}
 				due := slotsBefore(now.Sub(start)+time.Nanosecond, config.RPS) - 1
 				if due >= result.PlannedRequests {

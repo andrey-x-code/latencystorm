@@ -1,8 +1,9 @@
 FROM golang:1.26.10-bookworm AS build
 WORKDIR /src
-COPY go.mod go.sum ./
-COPY go-common/ go-common/
-COPY load-agent/ load-agent/
+COPY contracts/go/ /contracts/go/
+COPY src/go.mod src/go.sum ./
+COPY src/go-common/ go-common/
+COPY src/load-agent/ load-agent/
 RUN go mod download && CGO_ENABLED=0 go build -mod=readonly -trimpath -o /out/app ./load-agent
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/

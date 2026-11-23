@@ -2,40 +2,21 @@ package main
 
 import (
 	"context"
-	"fmt"
-	common "github.com/andrey-x-code/latencystorm/src/go-common"
-	"github.com/segmentio/kafka-go"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"regexp"
 	"time"
+
+	contracts "github.com/andrey-x-code/latencystorm/contracts/go/gen/latencystorm/v1"
+	common "github.com/andrey-x-code/latencystorm/src/go-common"
+	"github.com/google/uuid"
+	"github.com/segmentio/kafka-go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func probe(ctx context.Context, client *http.Client, control, broker string) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, control+"/ready", nil)
-	if err != nil {
-		return err
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	response.Body.Close()
-	if response.StatusCode != 200 {
-		return fmt.Errorf("control API not ready")
-	}
-	connection, err := (&kafka.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "tcp", broker)
-	if err != nil {
-		return err
-	}
-	defer connection.Close()
-	if err := connection.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
-		return err
-	}
-	_, err = connection.Brokers()
-	return err
-}
+// main запускает локальный режим или поддерживает сессию агента в сети Compose.
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--local" {
 		os.Exit(localMain(os.Args[2:]))
@@ -44,39 +25,43 @@ func main() {
 		return
 	}
 	log := common.Logger("load-agent")
-	control := strings.TrimRight(os.Getenv("CONTROL_API_URL"), "/")
+	address, err := url.Parse(os.Getenv("CONTROL_API_URL"))
 	broker := os.Getenv("KAFKA_BROKERS")
 	agentID := os.Getenv("AGENT_ID")
-	parsed, err := url.Parse(control)
-	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || broker == "" || agentID == "" {
-		log.Error("CONTROL_API_URL, KAFKA_BROKERS and AGENT_ID are required")
+	if err != nil || address.Scheme != "http" || address.Host == "" || broker == "" ||
+		!regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`).MatchString(agentID) {
+		log.Error("valid CONTROL_API_URL, KAFKA_BROKERS and AGENT_ID are required")
 		os.Exit(1)
 	}
+	connection, err := grpc.NewClient("passthrough:///"+address.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Error("could not configure coordinator client")
+		os.Exit(1)
+	}
+	defer connection.Close()
+	writer := &kafka.Writer{
+		Addr: kafka.TCP(broker), Topic: "latencystorm.results.v1", Balancer: &kafka.Hash{},
+		RequiredAcks: kafka.RequireAll, BatchSize: 1, MaxAttempts: 1,
+		ReadTimeout: 2 * time.Second, WriteTimeout: 2 * time.Second, AllowAutoTopicCreation: true,
+	}
+	defer writer.Close()
 	state := &common.Readiness{}
 	mux := http.NewServeMux()
 	common.Endpoints(mux, "load-agent", state, nil)
+	sessionID := uuid.NewString()
 	monitor := func(ctx context.Context) {
-		client := &http.Client{Timeout: 2 * time.Second}
-		defer client.CloseIdleConnections()
-		var previous bool
-		for {
-			probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			err := probe(probeCtx, client, control, broker)
-			cancel()
-			ready := err == nil
-			state.Set(ready)
-			if previous != ready {
-				log.Info("readiness changed", "ready", ready, "agentId", agentID)
-				previous = ready
+		client := contracts.NewAgentControlClient(connection)
+		for ctx.Err() == nil {
+			err := connectAgent(ctx, client, agentID, sessionID, broker, writer, state)
+			if ctx.Err() == nil && err != nil {
+				log.Warn("coordinator session disconnected", "agentId", agentID, "sessionId", sessionID)
 			}
 			select {
 			case <-ctx.Done():
-				return
-			case <-time.After(3 * time.Second):
+			case <-time.After(time.Second):
 			}
 		}
 	}
-	log.Info("service starting", "agentId", agentID, "stage", "infrastructure")
 	if err := common.Run(mux, state, log, monitor); err != nil {
 		log.Error("service failed", "error", err)
 		os.Exit(1)
